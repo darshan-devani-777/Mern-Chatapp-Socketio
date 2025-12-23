@@ -1,8 +1,8 @@
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-const fs = require('fs');
-const path = require('path');
-const User = require('../models/User');
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const fs = require("fs");
+const path = require("path");
+const User = require("../models/User");
 
 // REGISTER USER
 exports.register = async (req, res) => {
@@ -14,18 +14,20 @@ exports.register = async (req, res) => {
     if (exists) {
       return res.status(400).json({
         success: false,
-        message: 'Username or email already exists',
+        message: "Username or email already exists",
       });
     }
 
     const newUser = new User({ username, email, password, avatarUrl: avatar });
     await newUser.save();
 
-    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
 
     res.status(201).json({
       success: true,
-      message: 'User Registered Successfully',
+      message: "User Registered Successfully",
       token,
       user: {
         id: newUser._id,
@@ -37,7 +39,7 @@ exports.register = async (req, res) => {
   } catch (err) {
     res.status(500).json({
       success: false,
-      message: 'Registration failed',
+      message: "Registration failed",
       error: err.message,
     });
   }
@@ -52,7 +54,7 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
@@ -60,15 +62,17 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid password',
+        message: "Invalid password",
       });
     }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
 
     res.status(200).json({
       success: true,
-      message: 'User Login Successfully...',
+      message: "User Login Successfully...",
       token,
       user: {
         id: user._id,
@@ -80,7 +84,7 @@ exports.login = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Login failed',
+      message: "Login failed",
       error: error.message,
     });
   }
@@ -89,7 +93,7 @@ exports.login = async (req, res) => {
 // GET ALL USER
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({}, 'username email avatarUrl');
+    const users = await User.find({}, "username email avatarUrl");
     res.status(200).json({
       success: true,
       message: "Users Fetched Successfully...",
@@ -99,16 +103,16 @@ exports.getAllUsers = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch users',
+      message: "Failed to fetch users",
       error: error.message,
     });
   }
 };
 
-// UPDATE USER 
+// UPDATE USER
 exports.updateUser = async (req, res) => {
   try {
-    const userId = req.user.id; 
+    const userId = req.user.id;
 
     const { username, email, password } = req.body;
 
@@ -144,7 +148,7 @@ exports.updateUser = async (req, res) => {
       if (user.avatarUrl) {
         const oldPath = path.join(__dirname, "..", user.avatarUrl);
         if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath); 
+          fs.unlinkSync(oldPath);
         }
       }
 
@@ -163,7 +167,6 @@ exports.updateUser = async (req, res) => {
         avatarUrl: user.avatarUrl,
       },
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -172,6 +175,3 @@ exports.updateUser = async (req, res) => {
     });
   }
 };
-
-
-

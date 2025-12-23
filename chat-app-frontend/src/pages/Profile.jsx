@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
 
 export default function Profile() {
   const { user, setUser } = useAuth();
@@ -14,15 +15,25 @@ export default function Profile() {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
-  
+
+    if (!username && !email && !password && !avatar) {
+      Swal.fire({
+        icon: "warning",
+        title: "Missing Fields",
+        text: "Please provide at least one field to update.",
+        confirmButtonColor: "#f44336",
+      });
+      return;
+    }
+
     const formData = new FormData();
     formData.append("username", username);
     formData.append("email", email);
     if (password) formData.append("password", password);
     if (avatar) formData.append("avatar", avatar);
-  
+
     const token = localStorage.getItem("token");
-  
+
     try {
       const res = await fetch(`http://localhost:3333/api/auth/update`, {
         method: "PUT",
@@ -31,34 +42,47 @@ export default function Profile() {
         },
         body: formData,
       });
-  
+
       const data = await res.json();
-  
+
       if (data.success) {
         localStorage.setItem("user", JSON.stringify(data.user));
         setUser(data.user);
-  
+
         setUsername(data.user.username);
         setEmail(data.user.email);
         setPassword("");
         setAvatar(null);
-  
         setEditMode(false);
-  
-        alert("Profile Updated Successfully...!");
+
+        Swal.fire({
+          icon: "success",
+          title: "Profile Updated Successfully!",
+          text: "Your profile has been updated successfully.",
+          confirmButtonColor: "#4CAF50",
+        });
       } else {
-        alert(data.message || "Update failed");
+        Swal.fire({
+          icon: "error",
+          title: "Update Failed",
+          text:
+            data.message || "Failed to update your profile. Please try again.",
+          confirmButtonColor: "#f44336",
+        });
       }
     } catch (error) {
-      alert("Something went wrong");
+      Swal.fire({
+        icon: "error",
+        title: "Something Went Wrong",
+        text: "An error occurred while updating your profile. Please try again.",
+        confirmButtonColor: "#f44336",
+      });
       console.error(error);
     }
-  };  
+  };
 
   if (!user) {
-    return (
-      <div className="text-center text-white mt-10">User Not Found</div>
-    );
+    return <div className="text-center text-white mt-10">User Not Found</div>;
   }
 
   return (
@@ -109,7 +133,6 @@ export default function Profile() {
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Username"
             className="w-full p-2 rounded bg-gray-700 text-white"
-            required
           />
 
           <input
@@ -118,7 +141,6 @@ export default function Profile() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
             className="w-full p-2 rounded bg-gray-700 text-white"
-            required
           />
 
           <input

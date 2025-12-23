@@ -3,6 +3,7 @@ import { io } from "socket.io-client";
 import axios from "axios";
 import EmojiPicker from "emoji-picker-react";
 import { useAuth } from "../context/AuthContext";
+import Swal from "sweetalert2";
 
 export default function Chat({ room, onBack }) {
   const { token, user } = useAuth();
@@ -183,14 +184,33 @@ export default function Chat({ room, onBack }) {
 
   // DELETE MESSAGE
   const deleteMessage = (id) => {
-    axios
-      .delete(`http://localhost:3333/api/chat/delete/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then(() => {
-        setMessages((prev) => prev.filter((msg) => msg._id !== id));
-      })
-      .catch((err) => alert(err.response?.data?.message || err.message));
+    Swal.fire({
+      title: "Are you sure?",
+      text: "You won't be able to revert this!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Yes, delete it!",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        axios
+          .delete(`http://localhost:3333/api/chat/delete/${id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          .then(() => {
+            setMessages((prev) => prev.filter((msg) => msg._id !== id));
+            Swal.fire("Deleted!", "Your message has been deleted.", "success");
+          })
+          .catch((err) => {
+            Swal.fire(
+              "Error",
+              err.response?.data?.message || err.message,
+              "error"
+            );
+          });
+      }
+    });
   };
 
   return (

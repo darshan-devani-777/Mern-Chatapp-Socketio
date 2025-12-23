@@ -19,7 +19,23 @@ exports.register = async (req, res) => {
     }
 
     const newUser = new User({ username, email, password, avatarUrl: avatar });
-    await newUser.save();
+
+    try {
+      await newUser.save();
+    } catch (validationError) {
+      const errors = {};
+      for (let field in validationError.errors) {
+        if (validationError.errors.hasOwnProperty(field)) {
+          errors[field] = validationError.errors[field].message;
+        }
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors,
+      });
+    }
 
     const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
       expiresIn: "1d",
@@ -54,7 +70,7 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message: "User not found with this email",
       });
     }
 
@@ -82,6 +98,18 @@ exports.login = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.name === "ValidationError") {
+      const validationErrors = {};
+      for (let field in error.errors) {
+        validationErrors[field] = error.errors[field].message;
+      }
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: validationErrors,
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: "Login failed",
@@ -124,22 +152,38 @@ exports.updateUser = async (req, res) => {
       });
     }
 
-    const exists = await User.findOne({
-      $or: [{ username }, { email }],
-      _id: { $ne: userId },
-    });
-
-    if (exists) {
+    if (!username && !email && !password && !req.file) {
       return res.status(400).json({
         success: false,
-        message: "Username or email already exists",
+        message:
+          "Please provide at least one field to update (username, email, password, or avatar).",
       });
+    }
+
+    if (username || email) {
+      const exists = await User.findOne({
+        $or: [{ username }, { email }],
+        _id: { $ne: userId },
+      });
+
+      if (exists) {
+        return res.status(400).json({
+          success: false,
+          message: "Username or email already exists.",
+        });
+      }
     }
 
     if (username) user.username = username;
     if (email) user.email = email;
 
     if (password) {
+      if (password.length < 6) {
+        return res.status(400).json({
+          success: false,
+          message: "Password must be at least 6 characters long.",
+        });
+      }
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(password, salt);
     }
@@ -159,7 +203,7 @@ exports.updateUser = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "User Updated Successfully...",
+      message: "User updated successfully.",
       user: {
         id: user._id,
         username: user.username,

@@ -7,6 +7,7 @@ export default function Header() {
 
   const handleLogout = () => {
     logout();
+    localStorage.clear();
     navigate("/register");
   };
 

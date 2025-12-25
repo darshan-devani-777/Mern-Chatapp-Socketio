@@ -86,7 +86,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="max-w-md mx-auto mt-10 bg-gray-800 text-white p-6 rounded-lg shadow relative">
+    <div className="max-w-md mx-auto mt-10 bg-gray-800 border border-gray-700 text-white p-6 rounded-lg shadow relative">
       <button
         onClick={() => navigate(-1)}
         className="absolute top-1 right-3 text-red-500 hover:text-red-700 text-xl font-bold border rounded-full px-2 cursor-pointer"

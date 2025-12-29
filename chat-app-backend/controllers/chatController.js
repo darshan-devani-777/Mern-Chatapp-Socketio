@@ -5,42 +5,94 @@ const fs = require("fs");
 // CREATE ROOM MESSAGE
 exports.createMessage = async (req, res) => {
   const { room, text, to } = req.body;
+  const sender = req.user;
+
+  console.log(
+    `✉️ MESSAGE CREATE | from=${sender.username} | room=${room} | to=${
+      to || "PUBLIC"
+    }`
+  );
 
   const images =
     req.files?.map(
       (file) => `${process.env.BASE_URL}/uploads/users/${file.filename}`
     ) || [];
 
-  const message = await Message.create({
-    room,
-    sender: req.user._id,
-    username: req.user.username,
-    avatarUrl: req.user.avatarUrl,
-    text,
-    to: to || null,
-    images,
-  });
-
-  const messageData = {
-    _id: message._id,
-    room,
-    username: message.username,
-    avatarUrl: message.avatarUrl,
-    text: message.text,
-    images: message.images,
-    to: message.to,
-    createdAt: message.createdAt,
-    updatedAt: message.updatedAt,
-  };
-
-  const io = req.app.get("io");
-  if (to) {
-    io.to(room).emit("message", messageData);
-  } else {
-    io.to(room).emit("message", messageData);
+  if (images.length > 0) {
+    console.log(
+      `🖼 IMAGES ATTACHED | from=${sender.username} | count=${images.length}`
+    );
   }
 
-  res.status(201).json({ success: true });
+  try {
+    const message = await Message.create({
+      room,
+      sender: sender._id,
+      username: sender.username,
+      avatarUrl: sender.avatarUrl,
+      text,
+      to: to || null,
+      images,
+    });
+
+    console.log(
+      `💾 MESSAGE SAVED | id=${message._id} | from=${sender.username}`
+    );
+
+    const messageData = {
+      _id: message._id,
+      room,
+      username: message.username,
+      avatarUrl: message.avatarUrl,
+      text: message.text,
+      images: message.images,
+      to: message.to,
+      createdAt: message.createdAt,
+      updatedAt: message.updatedAt,
+    };
+
+    const io = req.app.get("io");
+
+    // 🔐 PRIVATE MESSAGE
+    if (to) {
+      console.log(
+        `📡 SOCKET EMIT | PRIVATE | from=${sender.username} ➜ to=${to} | room=${room}`
+      );
+      io.to(room).emit("message", messageData);
+    } else {
+      // 🌍 PUBLIC MESSAGE
+      console.log(
+        `📡 SOCKET EMIT | PUBLIC | from=${sender.username} ➜ room=${room}`
+      );
+      io.to(room).emit("message", messageData);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: to
+        ? "Private message sent successfully"
+        : "Message sent successfully",
+      data: {
+        _id: message._id,
+        room: room,
+        from: sender.username,
+        to: to || "PUBLIC",
+        textLength: text?.length || 0,
+        imageCount: images.length,
+        createdAt: message.createdAt,
+      },
+    });
+  } catch (err) {
+    console.error(
+      `❌ MESSAGE FAILED | from=${sender?.username} | room=${room}`,
+      err
+    );
+
+    res.status(500).json({
+      success: false,
+      message: "Message creation failed",
+    });
+  }
 };
 
 // GET ROOM MESSAGE

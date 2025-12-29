@@ -4,7 +4,7 @@ const User = require("./models/User");
 const Message = require("./models/Message");
 
 const roomUsers = {};
-const userSocketMap = {}; 
+const userSocketMap = {};
 
 module.exports = (server, app) => {
   const io = socketio(server, {
@@ -74,33 +74,31 @@ module.exports = (server, app) => {
     // SEND MESSAGE
     socket.on("sendMessage", async ({ room, text, images = [], to }) => {
       if (!room || (!text?.trim() && images.length === 0)) return;
-    
+
       let savedImages = [];
-    
+
       for (const img of images) {
-        // frontend se img = { data: "data:image/png;base64,..." }
         if (img?.data?.startsWith("data:")) {
           const base64Data = img.data.split(",")[1];
           const buffer = Buffer.from(base64Data, "base64");
-    
+
           const fileName = `${Date.now()}-${Math.random()
             .toString(36)
             .slice(2)}.png`;
-    
+
           const uploadDir = path.join(__dirname, "uploads/users");
-    
+
           if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
           }
-    
+
           const filePath = path.join(uploadDir, fileName);
           fs.writeFileSync(filePath, buffer);
-    
-          // DB + socket me relative path
+
           savedImages.push(`/uploads/users/${fileName}`);
         }
       }
-    
+
       const message = await Message.create({
         room,
         sender: socket.user._id,
@@ -110,7 +108,7 @@ module.exports = (server, app) => {
         images: savedImages,
         to,
       });
-    
+
       const messageData = {
         _id: message._id,
         room,
@@ -122,7 +120,7 @@ module.exports = (server, app) => {
         createdAt: message.createdAt,
         updatedAt: message.updatedAt,
       };
-    
+
       // PRIVATE
       if (to) {
         const targetSocketId = userSocketMap[to];
@@ -134,7 +132,7 @@ module.exports = (server, app) => {
         // PUBLIC
         io.to(room).emit("message", messageData);
       }
-    });    
+    });
 
     // TYPING
     socket.on("userTyping", ({ room, isTyping }) => {
@@ -159,9 +157,7 @@ module.exports = (server, app) => {
 
       const room = socket.room;
       if (room && roomUsers[room]) {
-        roomUsers[room] = roomUsers[room].filter(
-          (u) => u.id !== socket.id
-        );
+        roomUsers[room] = roomUsers[room].filter((u) => u.id !== socket.id);
         io.to(room).emit("onlineUsers", roomUsers[room]);
       }
     });

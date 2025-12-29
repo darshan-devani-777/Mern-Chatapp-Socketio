@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import API_URL from "../config/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -45,7 +46,7 @@ export default function Login() {
     }
 
     try {
-      const res = await axios.post("http://localhost:3333/api/auth/login", {
+      const res = await axios.post(`${API_URL}/api/auth/login`, {
         email,
         password,
       });

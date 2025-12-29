@@ -29,13 +29,9 @@ export default function Register() {
     if (avatar) formData.append("avatar", avatar);
 
     try {
-      const res = await axios.post(
-        "http://localhost:3333/api/auth/register",
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
-      );
+      const res = await axios.post(`${API_URL}/api/auth/register`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
       Swal.fire({
         icon: "success",

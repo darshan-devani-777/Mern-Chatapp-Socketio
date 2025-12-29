@@ -20,7 +20,7 @@ function App() {
         <div className="flex-1 flex justify-center items-center">
 
           <Routes>
-            {/* ================= PUBLIC (CENTER SMALL) ================= */}
+            {/* PUBLIC (CENTER SMALL) */}
             <Route
               path="/register"
               element={
@@ -43,7 +43,7 @@ function App() {
               }
             />
 
-            {/* ================= AUTH REQUIRED ================= */}
+            {/* AUTH REQUIRED */}
 
             <Route
               path="/profile"
@@ -56,7 +56,7 @@ function App() {
               }
             />
 
-            {/* ================= CHAT (FULL WIDTH) ================= */}
+            {/* CHAT (FULL WIDTH) */}
             <Route
               path="/chat"
               element={

@@ -4,6 +4,7 @@ import axios from "axios";
 import EmojiPicker from "emoji-picker-react";
 import { useAuth } from "../context/AuthContext";
 import Swal from "sweetalert2";
+import API_URL from "../config/api";
 
 export default function Chat({ room, onBack }) {
   const { token, user } = useAuth();
@@ -27,7 +28,7 @@ export default function Chat({ room, onBack }) {
 
   useEffect(() => {
     axios
-      .get("http://localhost:3333/api/auth/users", {
+      .get(`${API_URL}/api/auth/users`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -41,7 +42,7 @@ export default function Chat({ room, onBack }) {
         )
       );
 
-    socketRef.current = io("http://localhost:3333", { auth: { token } });
+    socketRef.current = io(API_URL, { auth: { token } });
 
     socketRef.current.emit("joinRoom", { room });
 
@@ -158,7 +159,7 @@ export default function Chat({ room, onBack }) {
     });
 
     axios
-      .put(`http://localhost:3333/api/chat/edit/${id}`, formData, {
+      .put(`${API_URL}/api/chat/edit/${id}`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
@@ -210,7 +211,7 @@ export default function Chat({ room, onBack }) {
         formData.append("images", file);
       });
 
-      await axios.post("http://localhost:3333/api/chat/create", formData, {
+      await axios.post(`${API_URL}/api/chat/create`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
@@ -245,7 +246,7 @@ export default function Chat({ room, onBack }) {
     }).then((result) => {
       if (result.isConfirmed) {
         axios
-          .delete(`http://localhost:3333/api/chat/delete/${id}`, {
+          .delete(`${API_URL}/api/chat/delete/${id}`, {
             headers: { Authorization: `Bearer ${token}` },
           })
           .then(() => {
@@ -350,9 +351,7 @@ export default function Chat({ room, onBack }) {
                   {/* Avatar with online indicator */}
                   <div className="relative">
                     <img
-                      src={`http://localhost:3333${
-                        u.avatarUrl || "/default-avatar.png"
-                      }`}
+                      src={`${API_URL}${u.avatarUrl || "/default-avatar.png"}`}
                       alt={u.username}
                       className="w-10 h-10 rounded-full border-2 border-slate-700"
                     />
@@ -420,7 +419,7 @@ export default function Chat({ room, onBack }) {
             {filteredMessages.map((m, i) => {
               const isOwn = m.username === username;
               const avatarUrl = m.avatarUrl
-                ? `http://localhost:3333${m.avatarUrl}`
+                ? `${API_URL}${m.avatarUrl}`
                 : "/default-avatar.png";
               const isOnline = onlineUsers.includes(m.username);
               const isPrivate = m.to;
@@ -546,7 +545,7 @@ export default function Chat({ room, onBack }) {
 
                   {isOwn && (
                     <img
-                      src={`http://localhost:3333${
+                      src={`${API_URL}${
                         user?.avatarUrl || "/default-avatar.png"
                       }`}
                       className="w-9 h-9 rounded-full border-2 border-slate-700"

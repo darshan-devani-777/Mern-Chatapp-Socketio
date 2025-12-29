@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import API_URL from "../config/api";
 
 export default function Header() {
   const { isLoggedIn, user, logout } = useAuth();
@@ -14,25 +15,20 @@ export default function Header() {
   return (
     <header className="w-full sticky top-0 z-50 backdrop-blur-xl bg-black/40 border-b border-gray-600 shadow-lg">
       <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center text-cyan-400">
-
         {/* LEFT : USER INFO */}
         {isLoggedIn && user && (
           <div className="flex items-center gap-4">
             <NavLink to="/profile">
               <img
-                src={`http://localhost:3333${user.avatarUrl || "/default-avatar.png"}`}
+                src={`${API_URL}${user.avatarUrl || "/default-avatar.png"}`}
                 alt="avatar"
                 className="w-12 h-12 rounded-full object-cover border-2 border-cyan-500 hover:ring-2 hover:ring-cyan-400 transition"
               />
             </NavLink>
 
             <div className="leading-tight hidden sm:block font-mono">
-              <div className="text-cyan-400 font-semibold">
-                {user.username}
-              </div>
-              <div className="text-gray-400 text-xs">
-                {user.email}
-              </div>
+              <div className="text-cyan-400 font-semibold">{user.username}</div>
+              <div className="text-gray-400 text-xs">{user.email}</div>
             </div>
           </div>
         )}

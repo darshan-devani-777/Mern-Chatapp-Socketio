@@ -12,93 +12,96 @@ export default function Header() {
   };
 
   return (
-    <header className="w-full bg-gray-800 shadow-md p-4 flex justify-between items-center text-blue-400">
-      {isLoggedIn && user && user.username && (
-        <div className="flex items-center space-x-3">
-          {user.avatarUrl && (
-           <NavLink
-           to="/profile"
-           className={({ isActive }) =>
-             isActive
-               ? "ring-2 ring-blue-500 rounded-full"
-               : ""
-           }
-         >
-           <img
-             src={`http://localhost:3333${user.avatarUrl}`}
-             alt="avatar"
-             className="w-14 h-14 rounded-full border border-gray-500 object-cover hover:ring-2 hover:ring-blue-400 transition"
-           />
-         </NavLink>
-         
-          )}
-          <div className="flex flex-col leading-tight">
-            <span className="text-red-300 font-semibold text-lg">
-              {user.username}
-            </span>
-            <span className="text-gray-400 text-sm">{user.email}</span>
+    <header className="w-full sticky top-0 z-50 backdrop-blur-xl bg-black/40 border-b border-gray-600 shadow-lg">
+      <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center text-cyan-400">
+
+        {/* LEFT : USER INFO */}
+        {isLoggedIn && user && (
+          <div className="flex items-center gap-4">
+            <NavLink to="/profile">
+              <img
+                src={`http://localhost:3333${user.avatarUrl || "/default-avatar.png"}`}
+                alt="avatar"
+                className="w-12 h-12 rounded-full object-cover border-2 border-cyan-500 hover:ring-2 hover:ring-cyan-400 transition"
+              />
+            </NavLink>
+
+            <div className="leading-tight hidden sm:block font-mono">
+              <div className="text-cyan-400 font-semibold">
+                {user.username}
+              </div>
+              <div className="text-gray-400 text-xs">
+                {user.email}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-
-      <h1 className="text-xl font-bold">🔐 Chat App</h1>
-
-      <nav className="space-x-4 text-md flex items-center">
-        {!isLoggedIn ? (
-          <>
-            <NavLink
-              to="/login"
-              className={({ isActive }) =>
-                isActive
-                  ? "underline underline-offset-[6px] decoration-2 text-white hover:text-blue-300 transition duration-300"
-                  : "hover:text-white"
-              }
-            >
-              Login
-            </NavLink>
-            <NavLink
-              to="/register"
-              className={({ isActive }) =>
-                isActive
-                  ? "underline underline-offset-[6px] decoration-2 text-white hover:text-blue-300 transition duration-300"
-                  : "hover:text-white"
-              }
-            >
-              Register
-            </NavLink>
-          </>
-        ) : (
-          <>
-          <NavLink
-              to="/profile"
-              className={({ isActive }) =>
-                isActive
-                  ? "underline underline-offset-[6px] decoration-2 text-white hover:text-blue-300 transition duration-300 font-semibold"
-                  : "hover:text-white font-semibold"
-              }
-            >
-              Profile
-            </NavLink>
-            <NavLink
-              to="/chat"
-              className={({ isActive }) =>
-                isActive
-                  ? "underline underline-offset-[6px] decoration-2 text-white hover:text-blue-300 transition duration-300 font-semibold"
-                  : "hover:text-white font-semibold"
-              }
-            >
-              Chat
-            </NavLink>
-
-            <button
-              onClick={handleLogout}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-lg shadow transition duration-200 cursor-pointer"
-            >
-              Logout
-            </button>
-          </>
         )}
-      </nav>
+
+        {/* CENTER LOGO */}
+        <h1 className="text-lg sm:text-xl font-bold tracking-wide text-white font-mono">
+          🔐 Chat App
+        </h1>
+
+        {/* RIGHT : NAV */}
+        <nav className="flex items-center gap-4 text-sm sm:text-base">
+          {!isLoggedIn ? (
+            <>
+              <NavLink
+                to="/login"
+                className={({ isActive }) =>
+                  isActive
+                    ? "text-white font-semibold border-b-2 border-cyan-400 pb-1"
+                    : "text-gray-300 hover:text-white transition"
+                }
+              >
+                Login
+              </NavLink>
+
+              <NavLink
+                to="/register"
+                className={({ isActive }) =>
+                  isActive
+                    ? "text-white font-semibold border-b-2 border-cyan-400 pb-1"
+                    : "text-gray-300 hover:text-white transition"
+                }
+              >
+                Register
+              </NavLink>
+            </>
+          ) : (
+            <>
+              <NavLink
+                to="/profile"
+                className={({ isActive }) =>
+                  isActive
+                    ? "text-white font-semibold border-b-2 border-cyan-400 pb-1 font-mono"
+                    : "text-gray-300 hover:text-white transition font-mono"
+                }
+              >
+                Profile
+              </NavLink>
+
+              <NavLink
+                to="/chat"
+                className={({ isActive }) =>
+                  isActive
+                    ? "text-white font-semibold border-b-2 border-cyan-400 pb-1 font-mono"
+                    : "text-gray-300 hover:text-white transition font-mono"
+                }
+              >
+                Chat
+              </NavLink>
+
+              <button
+                onClick={handleLogout}
+                className="ml-2 bg-red-500 font-mono hover:bg-red-700 text-white px-4 py-1.5 rounded-xl shadow transition cursor-pointer"
+              >
+                Logout
+              </button>
+            </>
+          )}
+        </nav>
+      </div>
     </header>
   );
 }

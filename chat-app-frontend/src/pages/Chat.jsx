@@ -13,13 +13,17 @@ export default function Chat({ room, onBack }) {
   const [text, setText] = useState("");
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
+  const [clearImages, setClearImages] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [privateRecipient, setPrivateRecipient] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
+  const [unreadMap, setUnreadMap] = useState({});
+  const [openMenuId, setOpenMenuId] = useState(null);
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     axios
@@ -46,12 +50,32 @@ export default function Chat({ room, onBack }) {
     });
 
     socketRef.current.on("message", (message) => {
-      if (
-        !message.to ||
-        message.to === username ||
-        message.username === username
-      ) {
-        setMessages((prev) => [...prev, message]);
+      console.log("🟢 SOCKET MESSAGE RECEIVED:", message);
+      setMessages((prev) => [...prev, message]);
+
+      if (message.username === username) return;
+
+      // 🔐 PRIVATE MESSAGE
+      if (message.to) {
+        if (message.to !== username) return;
+
+        if (privateRecipient !== message.username) {
+          setUnreadMap((prev) => ({
+            ...prev,
+            [message.username]: (prev[message.username] || 0) + 1,
+          }));
+        }
+        return;
+      }
+
+      // 🌐 PUBLIC MESSAGE
+      if (!message.to) {
+        if (privateRecipient !== "") {
+          setUnreadMap((prev) => ({
+            ...prev,
+            public: (prev.public || 0) + 1,
+          }));
+        }
       }
     });
 
@@ -75,8 +99,21 @@ export default function Chat({ room, onBack }) {
       }
     );
 
-    return () => socketRef.current.disconnect();
-  }, [token, room, username]);
+    socketRef.current.on("messageEdited", (updatedMsg) => {
+      setMessages((prev) =>
+        prev.map((m) => (m._id === updatedMsg._id ? updatedMsg : m))
+      );
+    });
+
+    return () => {
+      socketRef.current.off("messageEdited");
+      socketRef.current.off("message");
+      socketRef.current.off("previousMessages");
+      socketRef.current.off("onlineUsers");
+      socketRef.current.off("userTyping");
+      socketRef.current.disconnect();
+    };
+  }, [token, room, username, privateRecipient]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -112,12 +149,13 @@ export default function Chat({ room, onBack }) {
     const formData = new FormData();
     formData.append("text", text);
 
-    if (imageFiles.length > 0) {
-      imageFiles.forEach((file) => {
-        formData.append("images", file);
-      });
+    if (clearImages) {
       formData.append("clearImages", "true");
     }
+
+    imageFiles.forEach((file) => {
+      formData.append("images", file);
+    });
 
     axios
       .put(`http://localhost:3333/api/chat/edit/${id}`, formData, {
@@ -137,6 +175,7 @@ export default function Chat({ room, onBack }) {
         setText("");
         setImageFiles([]);
         setImagePreviews([]);
+        setClearImages(false);
       })
       .catch((err) =>
         alert(err.response?.data?.message || "Failed to update message")
@@ -146,40 +185,51 @@ export default function Chat({ room, onBack }) {
   const editMessage = (msg) => {
     setEditingMessageId(msg._id);
     setText(msg.text);
+    setImagePreviews(msg.images || []);
+    setImageFiles([]);
+    setClearImages(false);
   };
 
   // SEND MESSAGE
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!text.trim() && imageFiles.length === 0) return;
 
+    // EDIT MODE
     if (editingMessageId) {
       updateMessage(editingMessageId);
       return;
     }
 
-    const readerPromises = imageFiles.map((file) => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    });
+    try {
+      const formData = new FormData();
+      formData.append("room", room);
+      formData.append("text", text);
+      formData.append("to", privateRecipient || "");
 
-    Promise.all(readerPromises).then((base64Images) => {
-      socketRef.current.emit("sendMessage", {
-        room,
-        text,
-        images: base64Images,
-        to: privateRecipient || null,
-        avatarUrl: user?.avatarUrl,
+      imageFiles.forEach((file) => {
+        formData.append("images", file);
       });
 
+      await axios.post("http://localhost:3333/api/chat/create", formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      // UI clear
       setText("");
       setImageFiles([]);
       setImagePreviews([]);
-      socketRef.current.emit("userTyping", { room, isTyping: false });
-    });
+
+      // typing stop
+      socketRef.current.emit("userTyping", {
+        room,
+        isTyping: false,
+      });
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to send message");
+    }
   };
 
   // DELETE MESSAGE
@@ -213,286 +263,407 @@ export default function Chat({ room, onBack }) {
     });
   };
 
+  const filteredMessages = messages.filter((m) => {
+    // PUBLIC ROOM
+    if (!privateRecipient) {
+      return !m.to;
+    }
+
+    // PRIVATE CHAT
+    return (
+      (m.username === username && m.to === privateRecipient) ||
+      (m.username === privateRecipient && m.to === username)
+    );
+  });
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const isPublicActive = privateRecipient === "";
+
   return (
-    <div className="max-w-3xl mx-auto w-full h-[95vh] flex flex-col bg-slate-900 rounded-3xl shadow-2xl shadow-cyan-500/20 overflow-hidden border border-slate-700">
-      {/* Header */}
-      <div className="relative bg-slate-900/70 backdrop-blur-sm px-6 py-4 border-b border-gray-500/50">
-        <div className="flex items-center justify-between w-full">
-          <h2 className="text-xl font-semibold text-gray-100">
-            Room: <span className="text-red-500 font-mono">{room}</span>
-          </h2>
+    <div className="w-screen h-screen flex justify-center items-center">
+      <div className="w-full max-w-7xl h-[95vh] flex bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-700">
+        {/* LEFT SIDE : USERS */}
+        <div className="w-[22%] bg-slate-950 border-r border-slate-700 flex flex-col">
+          {/* Header */}
+          <div className="px-4 py-4 border-b border-slate-700 bg-slate-900/70">
+            <h2 className="text-lg font-bold text-white font-mono flex items-center gap-2">
+              Users
+              <span className="bg-gray-600 text-white text-sm px-2 py-0.5 rounded-full">
+                {allUsers.length + 1}
+              </span>
+            </h2>
+          </div>
 
-          <span className="text-xs font-medium bg-green-900/50 text-green-300 px-3 py-1 rounded-full shadow-sm border border-green-800 mx-auto">
-            Active: {onlineUsers.length}
-          </span>
-
-          <button
-            onClick={onBack}
-            className="text-sm font-medium bg-pink-900/50 hover:bg-pink-700/70 px-2 py-1.5 rounded-full shadow-md transition duration-300 cursor-pointer text-white"
-          >
-            ❌
-          </button>
-        </div>
-
-        {/* User Selection */}
-        <div className="w-full max-w-xs mt-5">
-          <label className="block text-[13px] font-medium text-gray-400 mb-1 font-mono">
-            Select User
-          </label>
-          <select
-            value={privateRecipient}
-            onChange={(e) => setPrivateRecipient(e.target.value)}
-            className="block w-full px-4 py-2 border border-slate-600 bg-slate-800 text-sm text-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-cyan-500 cursor-pointer hover:bg-slate-700 transition duration-300 font-mono"
-          >
-            <optgroup label="🌐 Public Chat">
-              <option value="">🌐 Public Room</option>
-            </optgroup>
-            <optgroup label="🔐 Private Chat">
-              {allUsers.length === 0 ? (
-                <option disabled>User Not Found.</option>
-              ) : (
-                allUsers.map((user) => {
-                  const isOnline = onlineUsers.includes(user.username);
-                  const label = `🔐 Chatting with ${user.username} ${
-                    isOnline ? "🟢" : "⚪️"
-                  }`;
-                  return (
-                    <option key={user.id} value={user.username}>
-                      {label}
-                    </option>
-                  );
-                })
-              )}
-            </optgroup>
-          </select>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 bg-slate-950">
-        {messages.map((m, i) => {
-          const isOwn = m.username === username;
-          const avatarUrl = m.avatarUrl
-            ? `http://localhost:3333${m.avatarUrl}`
-            : "/default-avatar.png";
-          const isOnline = onlineUsers.includes(m.username);
-          const isPrivate = m.to;
-
-          return (
-            <div
-              key={i}
-              className={`flex items-end gap-3 ${
-                isOwn ? "justify-end" : "justify-start"
-              }`}
+          {/* Users List */}
+          <div className="flex-1 overflow-y-auto px-2 py-3 space-y-3">
+            {/* Public Room */}
+            <button
+              onClick={() => {
+                setPrivateRecipient("");
+                setUnreadMap((prev) => ({ ...prev, public: 0 }));
+              }}
+              className={`relative w-full flex items-center gap-3 px-3 py-4 rounded-xl transition cursor-pointer
+    ${
+      isPublicActive
+        ? "bg-cyan-600 text-white"
+        : "hover:bg-slate-800 text-gray-300"
+    }`}
             >
-              {!isOwn && (
-                <div className="relative">
-                  <img
-                    src={avatarUrl}
-                    alt="avatar"
-                    className="w-9 h-9 rounded-full shadow-md border-2 border-slate-700"
-                  />
-                  <span
-                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                      isOnline ? "bg-green-400" : "bg-gray-500"
-                    }`}
-                  />
-                </div>
+              🌐 <span className="font-mono text-sm">Public Room</span>
+              {unreadMap.public > 0 && (
+                <span className="absolute top-2 right-3 bg-pink-600 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                  {unreadMap.public}
+                </span>
               )}
+            </button>
 
-              <div
-                className={`relative max-w-[75%] px-5 py-3 rounded-xl text-sm shadow-lg ${
-                  isOwn
-                    ? "bg-gradient-to-br from-gray-500 to-cyan-600 text-white rounded-br-none"
-                    : "bg-gradient-to-br from-gray-400 to-gray-700 text-white border border-slate-700 rounded-bl-none"
+            {allUsers.map((u) => {
+              const isOnline = onlineUsers.includes(u.username);
+              const isActive = privateRecipient === u.username;
+
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => {
+                    setPrivateRecipient(u.username);
+                    setUnreadMap((prev) => ({ ...prev, [u.username]: 0 }));
+                  }}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition cursor-pointer
+                ${
+                  isActive
+                    ? "bg-cyan-600 text-white"
+                    : "hover:bg-slate-800 text-gray-300"
                 }`}
-              >
-                <div className="text-[16px] font-bold text-black mb-1">
-                  {m.username}{" "}
-                  {isPrivate && (
-                    <span className="text-red-700 font-mono font-semibold text-xs">
-                      (Private)
-                    </span>
-                  )}
-                </div>
-                {m.text && <div>{m.text}</div>}
-                {m.images?.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {m.images.map((img, index) => (
-                      <img
-                        key={index}
-                        src={img}
-                        alt={`image-${index}`}
-                        className="w-32 h-32 object-cover rounded-lg border-2 border-slate-700 shadow-md"
-                      />
-                    ))}
+                >
+                  {/* Avatar with online indicator */}
+                  <div className="relative">
+                    <img
+                      src={`http://localhost:3333${
+                        u.avatarUrl || "/default-avatar.png"
+                      }`}
+                      alt={u.username}
+                      className="w-10 h-10 rounded-full border-2 border-slate-700"
+                    />
+
+                    {/* Online dot */}
+                    <span
+                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-900
+      ${isOnline ? "bg-green-400" : "bg-gray-500"}`}
+                    />
+
+                    {/* 🔔 Unread badge */}
+                    {unreadMap[u.username] > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-pink-600 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                        {unreadMap[u.username]}
+                      </span>
+                    )}
                   </div>
-                )}
 
-                {isOwn && (
-                  <div className="absolute top-1 right-0 group">
-                    <button className="text-white text-sm px-1 rounded hover:bg-white/20 cursor-pointer transition duration-300">
-                      ⋮
-                    </button>
-
-                    <div className="hidden group-hover:flex flex-col shadow-lg absolute left-3 top-0 z-10 bg-slate-800 rounded-md border border-slate-700">
-                      <button
-                        onClick={() => {
-                          setEditingMessageId(m._id);
-                          setText(m.text);
-                          const previews = m.images || [];
-                          setImagePreviews(previews);
-                          setImageFiles([]);
-                        }}
-                        className="px-2 py-1 text-xs text-gray-300 hover:bg-slate-700 border-b border-slate-700 cursor-pointer"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => deleteMessage(m._id)}
-                        className="px-2 py-1 text-xs text-pink-500 hover:bg-slate-700 cursor-pointer"
-                      >
-                        🗑
-                      </button>
+                  {/* User info */}
+                  <div className="flex-1 text-left">
+                    <div className="text-md font-mono">{u.username}</div>
+                    <div className="text-[11px] text-gray-400">
+                      {isOnline ? "Online" : "Offline"}
                     </div>
                   </div>
-                )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-                <div className="text-[10px] text-right text-white mt-4 font-mono">
-                  {new Date(m.timestamp).toLocaleTimeString()}
-                </div>
-              </div>
-
-              {isOwn && (
-                <img
-                  src={`http://localhost:3333${
-                    user?.avatarUrl || "/default-avatar.png"
-                  }`}
-                  alt="avatar"
-                  className="w-9 h-9 rounded-full shadow-md border-2 border-slate-700"
-                />
+        {/* RIGHT SIDE : CHAT */}
+        <div className="flex-1 flex flex-col">
+          {/* Header */}
+          <div className="relative bg-slate-900/70 backdrop-blur-sm px-6 py-3.5 border-b border-gray-500/50 flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-gray-100 font-mono flex items-center gap-2">
+              {privateRecipient ? (
+                <>
+                  <span>🔐</span>
+                  <span className="text-cyan-400">{privateRecipient}</span>
+                </>
+              ) : (
+                <>
+                  <span>🌐</span>
+                  <span className="text-gray-100">Room:</span>
+                  <span className="text-red-400">{room}</span>
+                </>
               )}
-            </div>
-          );
-        })}
-        <div ref={messagesEndRef}></div>
-      </div>
+            </h2>
 
-      {/* Typing Indicator */}
-      {typingUsers.length > 0 && (
-        <div className="flex items-center gap-2 px-2 py-2 bg-slate-950">
-          <div className="flex -space-x-2">
-            {typingUsers.map((u, i) => (
-              <img
-                key={i}
-                src={`http://localhost:3333${
-                  u.avatarUrl || "/default-avatar.png"
-                }`}
-                className="w-7 h-7 rounded-full border-2 border-cyan-500 shadow"
-                alt={u.username}
-              />
-            ))}
+            <span className="text-xs font-medium bg-green-900/50 text-green-300 px-3 py-1 rounded-full border border-green-800">
+              Active: {onlineUsers.length}
+            </span>
+
+            <button
+              onClick={onBack}
+              className="text-sm bg-pink-900/50 hover:bg-red-900 px-2 py-1.5 rounded-full text-white cursor-pointer"
+            >
+              ❌
+            </button>
           </div>
-          <span className="text-sm italic text-gray-400 font-mono">
-            {typingUsers.map((u) => u.username).join(" and ")} typing...
-          </span>
-        </div>
-      )}
 
-      {/* Input */}
-      <div className="border-t border-gray-500/50 bg-gray-950 px-4 py-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="text-xl cursor-pointer"
-          >
-            😊
-          </button>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 bg-slate-950">
+            {filteredMessages.map((m, i) => {
+              const isOwn = m.username === username;
+              const avatarUrl = m.avatarUrl
+                ? `http://localhost:3333${m.avatarUrl}`
+                : "/default-avatar.png";
+              const isOnline = onlineUsers.includes(m.username);
+              const isPrivate = m.to;
 
-          <label htmlFor="imageInput" className="cursor-pointer">
-            📎
-          </label>
-          <input
-            id="imageInput"
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleImageChange}
-            className="hidden"
-          />
-
-          <input
-            type="text"
-            value={text}
-            onChange={handleTyping}
-            placeholder={`Type your message${
-              privateRecipient ? ` to ${privateRecipient}` : ""
-            }...`}
-            className="flex-1 bg-slate-800 px-4 py-2 rounded-full text-[12px] text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 shadow-sm font-mono"
-          />
-
-          <button
-            onClick={sendMessage}
-            className="bg-cyan-500 hover:bg-cyan-700 text-white text-sm px-4 py-2 rounded-full shadow-lg shadow-cyan-500/30 transition duration-300 cursor-pointer"
-          >
-            🚀
-          </button>
-        </div>
-
-        {/* Emoji Picker */}
-        {showEmojiPicker && (
-          <div className="mt-2">
-            <EmojiPicker
-              onEmojiClick={handleEmojiClick}
-              height={300}
-              theme="dark"
-            />
-          </div>
-        )}
-
-        {/* Image Preview */}
-        {imagePreviews.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-3">
-            {imagePreviews.map((preview, i) => (
-              <div key={i} className="relative">
-                <img
-                  src={preview}
-                  alt={`preview-${i}`}
-                  className="w-16 h-16 rounded-lg object-cover border-2 border-slate-700 shadow"
-                />
-                <button
-                  className="absolute top-[-6px] right-[-6px] text-xs text-white bg-pink-500 hover:bg-pink-600 rounded-full w-5 h-5 flex items-center justify-center cursor-pointer"
-                  onClick={() => {
-                    const updatedPreviews = [...imagePreviews];
-                    updatedPreviews.splice(i, 1);
-                    setImagePreviews(updatedPreviews);
-                  }}
+              return (
+                <div
+                  key={m._id}
+                  className={`flex items-end gap-3 ${
+                    isOwn ? "justify-end" : "justify-start"
+                  }`}
                 >
-                  ×
+                  {!isOwn && (
+                    <div className="relative">
+                      <img
+                        src={avatarUrl}
+                        className="w-10 h-10 rounded-full border-2 border-slate-700"
+                        alt="avatar"
+                      />
+                      <span
+                        className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-900 ${
+                          isOnline ? "bg-green-400" : "bg-gray-500"
+                        }`}
+                      />
+                    </div>
+                  )}
+
+                  <div
+                    className={`relative max-w-[75%] px-5 py-3 rounded-xl text-sm shadow-lg ${
+                      isOwn
+                        ? "bg-gradient-to-br from-gray-500 to-cyan-600 text-white rounded-br-none"
+                        : "bg-gradient-to-br from-gray-400 to-gray-700 text-white rounded-bl-none"
+                    }`}
+                  >
+                    <div className="text-[16px] font-bold text-black mb-1">
+                      {m.username}
+                      {isPrivate && (
+                        <span className="text-red-700 font-mono text-xs">
+                          {" "}
+                          (Private)
+                        </span>
+                      )}
+                    </div>
+
+                    {m.text && <div>{m.text}</div>}
+
+                    {m.images?.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {m.images.map((img, index) => {
+                          const imageUrl = img;
+                          console.log("Image URL:", imageUrl);
+                          return (
+                            <img
+                              key={`${m._id}-${index}`}
+                              src={imageUrl}
+                              className="w-32 h-32 rounded-lg border-2 border-slate-700"
+                              alt="img"
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {isOwn && (
+                      <div ref={menuRef} className="absolute top-1 right-0 w-6">
+                        <button
+                          onClick={() =>
+                            setOpenMenuId(openMenuId === m._id ? null : m._id)
+                          }
+                          className="w-6 h-6 flex items-center justify-center text-white cursor-pointer"
+                        >
+                          ⋮
+                        </button>
+
+                        {openMenuId === m._id && (
+                          <div className="absolute -right-9 top-0 flex flex-col bg-slate-800 border border-slate-700 rounded-md z-50">
+                            <button
+                              onClick={() => {
+                                setEditingMessageId(m._id);
+                                setText(m.text);
+                                setImagePreviews(m.images || []);
+                                setImageFiles([]);
+                                setOpenMenuId(null);
+                              }}
+                              className="px-2 py-1 text-xs hover:bg-slate-700 cursor-pointer"
+                            >
+                              ✏️
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                deleteMessage(m._id);
+                                setOpenMenuId(null);
+                              }}
+                              className="px-2 py-1 text-xs text-pink-500 hover:bg-slate-700 cursor-pointer"
+                            >
+                              🗑
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="text-[10px] text-right mt-3 font-mono">
+                      {new Date(m.updatedAt || m.createdAt).toLocaleTimeString(
+                        "en-IN",
+                        {
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        }
+                      )}
+                    </div>
+
+                    {m.updatedAt &&
+                      m.createdAt &&
+                      new Date(m.updatedAt).getTime() >
+                        new Date(m.createdAt).getTime() && (
+                        <div className="text-[10px] text-right text-yellow-300 italic font-mono">
+                          edited
+                        </div>
+                      )}
+                  </div>
+
+                  {isOwn && (
+                    <img
+                      src={`http://localhost:3333${
+                        user?.avatarUrl || "/default-avatar.png"
+                      }`}
+                      className="w-9 h-9 rounded-full border-2 border-slate-700"
+                      alt="avatar"
+                    />
+                  )}
+                </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Typing Indicator */}
+          {typingUsers.length > 0 && (
+            <div className="px-4 py-3 bg-slate-950 text-sm italic text-gray-400 font-mono">
+              {typingUsers.map((u) => u.username).join(" and ")} typing...
+            </div>
+          )}
+
+          {/* INPUT SECTION (UNCHANGED) */}
+          <div className="border-t border-gray-500/50 bg-gray-950 px-4 py-4">
+            {editingMessageId && (
+              <div className="mb-2 flex items-center justify-between text-xs font-mono text-yellow-300 bg-yellow-900/30 border border-yellow-700 rounded-lg px-3 py-2">
+                <span>✏️ You are editing a message</span>
+
+                <button
+                  onClick={() => {
+                    setEditingMessageId(null);
+                    setText("");
+                    setImageFiles([]);
+                    setImagePreviews([]);
+                  }}
+                  className="text-yellow-200 hover:text-red-400 font-bold cursor-pointer"
+                >
+                  ✖ Cancel
                 </button>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            )}
 
-      {/* Edit Message */}
-      {editingMessageId && (
-        <div className="mx-4 my-2 px-4 py-1 rounded-xl border border-yellow-500/30 bg-yellow-500/10 text-yellow-300 flex items-center justify-between shadow-sm">
-          <span className="text-sm font-medium font-mono">
-            ✏️ Editing message...
-          </span>
-          <button
-            onClick={() => {
-              setEditingMessageId(null);
-              setText("");
-            }}
-            className="text-xs text-yellow-300 font-semibold border border-yellow-500/50 px-3 py-1 rounded-full hover:bg-yellow-800/30 transition duration-300 cursor-pointer"
-          >
-            Cancel
-          </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="text-xl cursor-pointer"
+              >
+                😊
+              </button>
+
+              <label htmlFor="imageInput" className="cursor-pointer">
+                📎
+              </label>
+              <input
+                id="imageInput"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageChange}
+                className="hidden"
+              />
+
+              <input
+                type="text"
+                value={text}
+                onChange={handleTyping}
+                placeholder={`Type your message${
+                  privateRecipient ? ` to ${privateRecipient}` : ""
+                }...`}
+                className="flex-1 bg-slate-800 px-4 py-2 rounded-full text-[12px] text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 shadow-sm font-mono"
+              />
+
+              <button
+                onClick={sendMessage}
+                className="bg-cyan-500 hover:bg-cyan-700 text-white text-sm px-4 py-2 rounded-full shadow-lg shadow-cyan-500/30 transition duration-300 cursor-pointer"
+              >
+                🚀
+              </button>
+            </div>
+
+            {/* Emoji Picker */}
+            {showEmojiPicker && (
+              <div className="mt-2">
+                <EmojiPicker
+                  onEmojiClick={handleEmojiClick}
+                  height={300}
+                  theme="dark"
+                />
+              </div>
+            )}
+
+            {/* Image Preview */}
+            {imagePreviews.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-3">
+                {imagePreviews.map((preview, i) => (
+                  <div key={i} className="relative">
+                    <img
+                      src={preview}
+                      alt={`preview-${i}`}
+                      className="w-16 h-16 rounded-lg object-cover border-2 border-slate-700 shadow"
+                    />
+                    <button
+                      className="absolute top-[-6px] right-[-6px] text-xs text-white bg-pink-500 hover:bg-pink-600 rounded-full w-5 h-5 flex items-center justify-center cursor-pointer"
+                      onClick={() => {
+                        const updatedPreviews = [...imagePreviews];
+                        updatedPreviews.splice(i, 1);
+                        setImagePreviews(updatedPreviews);
+
+                        setClearImages(true);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

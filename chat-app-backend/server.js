@@ -1,14 +1,18 @@
 require("dotenv").config();
 const express = require("express");
+const http = require("http");
+const cors = require("cors");
+const path = require('path');
+
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const chatRoutes = require("./routes/chatRoutes");
-const socketServer = require("./socket");
+const initSocket = require("./socket");
 
 const app = express();
+
 app.use(express.json());
 
-const cors = require("cors");
 app.use(
   cors({
     origin: "http://localhost:5173",
@@ -17,12 +21,17 @@ app.use(
   })
 );
 
-app.use("/uploads", express.static("uploads"));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use("/api/auth", authRoutes);
 app.use("/api/chat", chatRoutes);
 
 connectDB();
-const server = app.listen(process.env.PORT || 5000, () =>
-  console.log(`Server Start At http://localhost:${process.env.PORT || 5000}`)
-);
-socketServer(server);
+
+const server = http.createServer(app);
+
+initSocket(server, app);
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});

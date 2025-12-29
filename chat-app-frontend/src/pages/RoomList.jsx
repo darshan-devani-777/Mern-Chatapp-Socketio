@@ -18,31 +18,41 @@ const RoomList = ({ onSelectRoom }) => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto bg-gray-800 p-6 rounded-2xl shadow-xl border border-gray-700">
-      <h2 className="text-2xl font-bold text-white mb-6 text-center">
-        Enter Room Name
+    <div className="w-full max-w-xl mx-auto backdrop-blur-xl bg-black/50 p-10 rounded-3xl shadow-2xl border border-gray-700 font-mono">
+      <h2 className="text-xl font-bold text-white mb-8 text-center tracking-wide">
+        🌐 Join a Room
       </h2>
 
-      <div className="space-y-4">
-        {" "}
-        <div className="relative mb-10">
+      <div className="space-y-6">
+        <div className="relative">
           <input
             type="text"
             value={roomInput}
             onChange={(e) => setRoomInput(e.target.value)}
-            placeholder="Type room name..."
-            className={`w-full px-4 py-3 rounded-xl bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              error ? "border-1 border-red-500" : ""
-            }`}
+            placeholder="Enter room name..."
+            className={`w-full px-5 py-3 rounded-2xl bg-slate-900/80 text-white placeholder-gray-500
+              border focus:outline-none transition text-sm
+              ${
+                error
+                  ? "border-red-500 ring-0 ring-red-500"
+                  : "border-slate-700 focus:ring-2 focus:ring-cyan-500"
+              }`}            
           />
 
           {error && (
-            <p className="text-red-500 text-sm mt-1 absolute left-0">{error}</p>
+            <p className="absolute left-1 text-red-400 text-xs mt-1 font-mono">
+              {error}
+            </p>
           )}
         </div>
+
         <button
           onClick={handleJoin}
-          className="w-full px-5 py-3 bg-gradient-to-r from-blue-700 to-indigo-700 text-white rounded-xl shadow-md transition duration-300 hover:from-blue-600 hover:to-indigo-600 hover:shadow-blue-500/40 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer text-lg font-semibold"
+          className="w-full py-3 rounded-2xl text-white text-md font-semibold
+            bg-gradient-to-r from-cyan-600 to-blue-700
+            hover:from-cyan-500 hover:to-blue-600
+            shadow-lg shadow-cyan-500/30
+            transition duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer"
         >
           🚀 Join Room
         </button>

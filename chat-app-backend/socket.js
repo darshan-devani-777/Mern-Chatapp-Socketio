@@ -4,108 +4,144 @@ const User = require("./models/User");
 const Message = require("./models/Message");
 
 const roomUsers = {};
-const userSocketMap = {};
+const userSocketMap = {}; 
 
-module.exports = (server) => {
-  const io = socketio(server, { cors: { origin: "*" } });
+module.exports = (server, app) => {
+  const io = socketio(server, {
+    cors: { origin: "*" },
+  });
 
-  // AUTHENTICATE WITH JWT
+  app.set("io", io);
+
+  // AUTH WITH JWT
   io.use(async (socket, next) => {
-    const token = socket.handshake.auth.token;
     try {
+      const token = socket.handshake.auth.token;
       const { id } = jwt.verify(token, process.env.JWT_SECRET);
       socket.user = await User.findById(id);
       next();
-    } catch {
+    } catch (err) {
       next(new Error("Authentication error"));
     }
   });
 
-  // CONNECTION
   io.on("connection", (socket) => {
-    console.log(socket.id);
-    
     const username = socket.user.username;
     const avatarUrl = socket.user.avatarUrl;
-    userSocketMap[username] = socket;
 
-    console.log(`${username} connected`);
-    const totalUsers = Object.keys(userSocketMap).length;
-    console.log(`Total connected users: ${totalUsers}`);
+    userSocketMap[username] = socket.id;
 
-    // Join room
+    console.log(`✅ CONNECTED | user: ${username} | socketId: ${socket.id}`);
+
+    // JOIN ROOM
     socket.on("joinRoom", async ({ room }) => {
       socket.join(room);
       socket.room = room;
 
-      console.log(`${username} joined room ${room}`);
+      console.log(
+        `📥 JOIN ROOM | user: ${username} | room: ${room} | socketId: ${socket.id}`
+      );
 
-      // Add to roomUsers
       if (!roomUsers[room]) roomUsers[room] = [];
-      roomUsers[room].push({ id: socket.id, username });
+
+      roomUsers[room].push({
+        id: socket.id,
+        username,
+      });
 
       io.to(room).emit("onlineUsers", roomUsers[room]);
 
       const recentMessages = await Message.find({ room })
-        .sort({ timestamp: -1 })
+        .sort({ createdAt: -1 })
         .limit(20)
         .populate("sender", "username avatarUrl");
 
       socket.emit(
         "previousMessages",
         recentMessages.reverse().map((msg) => ({
+          _id: msg._id,
           username: msg.username || msg.sender?.username,
+          avatarUrl: msg.avatarUrl || msg.sender?.avatarUrl,
           text: msg.text,
           images: msg.images,
-          avatarUrl: msg.avatarUrl || msg.sender?.avatarUrl || null,
-          timestamp: msg.timestamp,
           to: msg.to || null,
+          createdAt: msg.createdAt,
+          updatedAt: msg.updatedAt,
         }))
       );
     });
 
-    // Send message (public or private)
+    // SEND MESSAGE
     socket.on("sendMessage", async ({ room, text, images = [], to }) => {
       if (!room || (!text?.trim() && images.length === 0)) return;
-
-      try {
-        const message = new Message({
-          room,
-          sender: socket.user._id,
-          username: socket.user.username,
-          avatarUrl: socket.user.avatarUrl,
-          text,
-          images,
-          to,
-        });
-        await message.save();
-
-        const messageData = {
-          _id: message._id,
-          username: socket.user.username,
-          text,
-          images,
-          timestamp: message.timestamp,
-          avatarUrl: socket.user.avatarUrl,
-          to,
-        };
-
-        if (to) {
-          const targetSocket = [...io.sockets.sockets.values()].find(
-            (s) => s.user?.username === to
-          );
-          if (targetSocket) targetSocket.emit("message", messageData);
-          socket.emit("message", messageData);
-        } else {
-          io.to(room).emit("message", messageData);
+    
+      let savedImages = [];
+    
+      for (const img of images) {
+        // frontend se img = { data: "data:image/png;base64,..." }
+        if (img?.data?.startsWith("data:")) {
+          const base64Data = img.data.split(",")[1];
+          const buffer = Buffer.from(base64Data, "base64");
+    
+          const fileName = `${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2)}.png`;
+    
+          const uploadDir = path.join(__dirname, "uploads/users");
+    
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+    
+          const filePath = path.join(uploadDir, fileName);
+          fs.writeFileSync(filePath, buffer);
+    
+          // DB + socket me relative path
+          savedImages.push(`/uploads/users/${fileName}`);
         }
-      } catch (err) {
-        console.error("Error saving message:", err);
       }
-    });
+    
+      const message = await Message.create({
+        room,
+        sender: socket.user._id,
+        username,
+        avatarUrl,
+        text,
+        images: savedImages,
+        to,
+      });
+    
+      const messageData = {
+        _id: message._id,
+        room,
+        username,
+        avatarUrl,
+        text,
+        images: savedImages,
+        to,
+        createdAt: message.createdAt,
+        updatedAt: message.updatedAt,
+      };
+    
+      // PRIVATE
+      if (to) {
+        const targetSocketId = userSocketMap[to];
+        if (targetSocketId) {
+          io.to(targetSocketId).emit("message", messageData);
+        }
+        socket.emit("message", messageData);
+      } else {
+        // PUBLIC
+        io.to(room).emit("message", messageData);
+      }
+    });    
 
-    // Typing indicator
+    // TYPING
     socket.on("userTyping", ({ room, isTyping }) => {
+      console.log(
+        `⌨️ TYPING | user: ${username} | room: ${room} | isTyping: ${isTyping} | socketId: ${socket.id}`
+      );
+
       socket.to(room).emit("userTyping", {
         username,
         isTyping,
@@ -113,19 +149,23 @@ module.exports = (server) => {
       });
     });
 
-    // Disconnect
+    // DISCONNECT
     socket.on("disconnect", () => {
+      console.log(
+        `❌ DISCONNECTED | user: ${username} | socketId: ${socket.id}`
+      );
+
       delete userSocketMap[username];
 
       const room = socket.room;
       if (room && roomUsers[room]) {
-        roomUsers[room] = roomUsers[room].filter((u) => u.id !== socket.id);
+        roomUsers[room] = roomUsers[room].filter(
+          (u) => u.id !== socket.id
+        );
         io.to(room).emit("onlineUsers", roomUsers[room]);
       }
-
-      console.log(`${username} disconnected`);
-      const totalUsers = Object.keys(userSocketMap).length;
-      console.log(`Total connected users: ${totalUsers}`);
     });
   });
+
+  return io;
 };

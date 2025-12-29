@@ -93,57 +93,80 @@ export default function Login() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto mt-10 bg-gray-800 text-white rounded-xl shadow-lg p-6">
-      <h2 className="text-2xl font-semibold mb-4 text-center">Login</h2>
-      <form onSubmit={handleLogin} className="flex flex-col gap-4">
-        {/* Email Input */}
+    <div className="w-full max-w-xl mx-auto backdrop-blur-xl bg-black/50 text-white rounded-3xl shadow-2xl p-10 border border-gray-600 font-mono">
+      <h2 className="text-2xl font-bold mb-8 text-center tracking-wide text-cyan-400">
+        Login
+      </h2>
+
+      <form onSubmit={handleLogin} className="flex flex-col gap-6">
+        {/* Email */}
         <div>
           <input
             type="email"
-            className={`p-2 rounded-lg bg-gray-700 placeholder-gray-400 w-full ${
-              errors.email ? "border-1 border-red-700" : ""
-            }`}
+            className={`w-full px-5 py-3 rounded-2xl bg-slate-900/80 text-white placeholder-gray-500
+          border transition focus:outline-none text-md
+          ${
+            errors.email
+              ? "border-red-500 ring-0 ring-red-500"
+              : "border-slate-700 focus:ring-2 focus:ring-cyan-500"
+          }`}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors((p) => ({ ...p, email: "" }));
+            }}
+            placeholder="Email address"
           />
           {errors.email && (
-            <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+            <p className="text-red-400 text-xs mt-1 font-mono">
+              {errors.email}
+            </p>
           )}
         </div>
 
-        {/* Password Input with Show/Hide Feature */}
+        {/* Password */}
         <div className="relative">
           <input
             type={showPassword ? "text" : "password"}
-            className={`p-2 rounded-lg bg-gray-700 placeholder-gray-400 w-full ${
-              errors.password ? "border-1 border-red-700" : ""
-            }`}
+            className={`w-full px-5 py-3 rounded-2xl bg-slate-900/80 text-white placeholder-gray-500
+          border transition focus:outline-none
+          ${
+            errors.password
+              ? "border-red-500 ring-0 ring-red-500"
+              : "border-slate-700 focus:ring-2 focus:ring-cyan-500"
+          }`}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errors.password) setErrors((p) => ({ ...p, password: "" }));
+            }}
             placeholder="Password"
           />
+
           <span
-            className="absolute right-3 top-3 cursor-pointer"
+            className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-gray-400 hover:text-cyan-400 transition"
             onClick={() => setShowPassword(!showPassword)}
           >
-            {showPassword ? (
-              <FaEyeSlash className="text-gray-400" />
-            ) : (
-              <FaEye className="text-gray-400" />
-            )}
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
           </span>
+
           {errors.password && (
-            <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+            <p className="text-red-400 text-xs mt-1 font-mono">
+              {errors.password}
+            </p>
           )}
         </div>
 
-        {/* Submit Button */}
+        {/* Button */}
         <button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 cursor-pointer"
+          className="mt-2 py-3 rounded-2xl text-white text-lg font-semibold
+        bg-gradient-to-r from-cyan-600 to-blue-700
+        hover:from-cyan-500 hover:to-blue-600
+        shadow-lg shadow-cyan-500/30
+        transition duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer"
         >
-          Login
+          🚀 Login
         </button>
       </form>
     </div>

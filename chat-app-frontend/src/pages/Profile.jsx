@@ -86,96 +86,110 @@ export default function Profile() {
   }
 
   return (
-    <div className="max-w-md mx-auto mt-10 bg-gray-800 border border-gray-700 text-white p-6 rounded-lg shadow relative">
-      <button
-        onClick={() => navigate(-1)}
-        className="absolute top-1 right-3 text-red-500 hover:text-red-700 text-xl font-bold border rounded-full px-2 cursor-pointer"
-        aria-label="Close"
-      >
-        &times;
-      </button>
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="relative w-full max-w-md bg-black/50 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 text-white">
+        {/* Close */}
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white flex items-center justify-center transition cursor-pointer"
+        >
+          ✕
+        </button>
 
-      {!editMode ? (
-        <>
-          <div className="flex flex-col items-center space-y-4">
-            {user.avatarUrl && (
-              <img
-                src={`http://localhost:3333${user.avatarUrl}`}
-                alt="avatar"
-                className="w-20 h-20 rounded-full border border-gray-500 object-cover"
-              />
-            )}
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold text-blue-400">
-                {user.username}
-              </h2>
-              <p className="text-gray-400">{user.email}</p>
+        {/* VIEW MODE */}
+        {!editMode ? (
+          <>
+            <div className="flex flex-col items-center space-y-4">
+              {/* Avatar */}
+              <div className="relative">
+                <img
+                  src={
+                    user.avatarUrl
+                      ? `http://localhost:3333${user.avatarUrl}`
+                      : "/default-avatar.png"
+                  }
+                  className="w-26 h-26 rounded-full object-cover border-3 border-cyan-400 shadow-lg"
+                  alt="avatar"
+                />
+                <span className="absolute bottom-2 right-3 w-4 h-4 bg-green-400 border-2 border-black rounded-full" />
+              </div>
+
+              {/* Info */}
+              <div className="text-center font-mono">
+                <h2 className="text-2xl font-bold text-cyan-400 tracking-wide">
+                  {user.username}
+                </h2>
+                <p className="text-gray-300 text-sm">{user.email}</p>
+              </div>
             </div>
-          </div>
-          <div className="flex justify-center mt-6">
+
             <button
               onClick={() => setEditMode(true)}
-              className="bg-green-600 hover:bg-green-800 px-4 py-2 rounded cursor-pointer transition duration-300"
+              className="mt-6 w-full bg-cyan-600 hover:bg-cyan-700 text-white py-2.5 rounded-xl font-semibold transition shadow-lg cursor-pointer font-mono"
             >
+              ✏️ Edit Profile
+            </button>
+          </>
+        ) : (
+          /* EDIT MODE */
+          <form onSubmit={handleUpdate} className="space-y-4 font-mono">
+            <h2 className="text-xl font-bold text-center text-cyan-400">
               Edit Profile
-            </button>
-          </div>
-        </>
-      ) : (
-        <form onSubmit={handleUpdate} className="space-y-4">
-          <h2 className="text-xl font-semibold text-blue-400 text-center mb-4">
-            Edit Profile
-          </h2>
+            </h2>
 
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Username"
-            className="w-full p-2 rounded bg-gray-700 text-white"
-          />
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
+              className="w-full px-4 py-2 rounded-xl bg-black/40 border border-white/20 focus:ring-1 focus:ring-cyan-500 outline-none"
+            />
 
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            className="w-full p-2 rounded bg-gray-700 text-white"
-          />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              className="w-full px-4 py-2 rounded-xl bg-black/40 border border-white/20 focus:ring-1 focus:ring-cyan-500 outline-none"
+            />
 
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="New Password (optional)"
-            className="w-full p-2 rounded bg-gray-700 text-white"
-          />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="New Password"
+              className="w-full px-4 py-2 rounded-xl bg-black/40 border border-white/20 focus:ring-1 focus:ring-cyan-500 outline-none"
+            />
 
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setAvatar(e.target.files[0])}
-            className="w-full p-2 rounded bg-gray-700 text-white hover:cursor-pointer"
-          />
+            {/* Avatar Upload */}
+            <label className="block text-sm text-gray-300">
+              Avatar
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setAvatar(e.target.files[0])}
+                className="mt-2 w-full text-sm file:bg-cyan-600 file:border-none file:px-4 file:py-1.5 file:rounded-full file:text-white hover:file:bg-cyan-700 cursor-pointer"
+              />
+            </label>
 
-          <div className="flex justify-between mt-4">
-            <button
-              type="button"
-              onClick={() => setEditMode(false)}
-              className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded cursor-pointer transition duration-300"
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-800 px-4 py-2 rounded cursor-pointer transition duration-300"
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      )}
+            <div className="flex gap-3 pt-3">
+              <button
+                type="button"
+                onClick={() => setEditMode(false)}
+                className="w-1/2 bg-gray-600 hover:bg-gray-700 py-2 rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="w-1/2 bg-cyan-600 hover:bg-cyan-700 py-2 rounded-xl font-semibold transition cursor-pointer"
+              >
+                Save
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

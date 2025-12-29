@@ -2,6 +2,48 @@ const Message = require("../models/Message");
 const path = require("path");
 const fs = require("fs");
 
+// CREATE ROOM MESSAGE
+exports.createMessage = async (req, res) => {
+  const { room, text, to } = req.body;
+
+  const images =
+    req.files?.map(
+      (file) => `${process.env.BASE_URL}/uploads/users/${file.filename}`
+    ) || [];
+
+  const message = await Message.create({
+    room,
+    sender: req.user._id,
+    username: req.user.username,
+    avatarUrl: req.user.avatarUrl,
+    text,
+    to: to || null,
+    images,
+  });
+
+  const messageData = {
+    _id: message._id,
+    room,
+    username: message.username,
+    avatarUrl: message.avatarUrl,
+    text: message.text,
+    images: message.images,
+    to: message.to,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
+  };
+
+  // 🔥 THIS IS THE KEY
+  const io = req.app.get("io");
+  if (to) {
+    io.to(room).emit("message", messageData); // private handled on frontend
+  } else {
+    io.to(room).emit("message", messageData);
+  }
+
+  res.status(201).json({ success: true });
+};
+
 // GET ROOM MESSAGE
 exports.getRoomMessages = async (req, res) => {
   const { room } = req.params;
@@ -77,55 +119,64 @@ exports.editMessage = async (req, res) => {
     );
 
     if (!message) {
-      return res.status(404).json({
-        success: false,
-        message: "Message not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Message not found" });
     }
 
     if (String(message.sender._id) !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: "You are not authorized to edit this message",
-      });
+      return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
-    if (text) message.text = text;
+    // ✅ Update text
+    if (typeof text === "string") {
+      message.text = text;
+    }
 
+    // ✅ DELETE OLD IMAGES
     if (clearImages === "true") {
       for (const img of message.images) {
-        const imgPath = path.join(__dirname, "..", img);
-        if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+        const imgPath = path.join(process.cwd(), img.replace(/^\/+/, ""));
+
+        if (fs.existsSync(imgPath)) {
+          fs.unlinkSync(imgPath);
+        }
       }
       message.images = [];
     }
 
-    if (req.files && req.files.length > 0) {
-      const newPaths = req.files.map(
-        (file) => `/uploads/messages/${file.filename}`
+    // ✅ ADD NEW IMAGES
+    if (req.files?.length > 0) {
+      const newImages = req.files.map(
+        (file) => `${process.env.BASE_URL}/uploads/users/${file.filename}`
       );
-      message.images.push(...newPaths);
+
+      message.images.push(...newImages);
     }
 
     await message.save();
 
-    res.status(200).json({
+    const updatedMessage = {
+      _id: message._id,
+      room: message.room,
+      username: message.sender.username,
+      avatarUrl: message.sender.avatarUrl,
+      to: message.to,
+      text: message.text,
+      images: message.images,
+      createdAt: message.createdAt,
+      updatedAt: message.updatedAt,
+    };
+
+    req.app.get("io").to(message.room).emit("messageEdited", updatedMessage);
+
+    return res.status(200).json({
       success: true,
-      message: "Message Updated Successfully...",
-      data: {
-        _id: message._id,
-        room: message.room,
-        sender: message.sender._id,
-        username: message.sender.username,
-        avatarUrl: message.sender.avatarUrl,
-        to: message.to,
-        text: message.text,
-        images: message.images,
-        timestamp: message.timestamp,
-      },
+      message: "Message updated successfully",
+      data: updatedMessage,
     });
   } catch (err) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to update message",
       error: err.message,

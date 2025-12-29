@@ -33,10 +33,9 @@ exports.createMessage = async (req, res) => {
     updatedAt: message.updatedAt,
   };
 
-  // 🔥 THIS IS THE KEY
   const io = req.app.get("io");
   if (to) {
-    io.to(room).emit("message", messageData); // private handled on frontend
+    io.to(room).emit("message", messageData);
   } else {
     io.to(room).emit("message", messageData);
   }
@@ -128,12 +127,10 @@ exports.editMessage = async (req, res) => {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
-    // ✅ Update text
     if (typeof text === "string") {
       message.text = text;
     }
 
-    // ✅ DELETE OLD IMAGES
     if (clearImages === "true") {
       for (const img of message.images) {
         const imgPath = path.join(process.cwd(), img.replace(/^\/+/, ""));
@@ -145,7 +142,6 @@ exports.editMessage = async (req, res) => {
       message.images = [];
     }
 
-    // ✅ ADD NEW IMAGES
     if (req.files?.length > 0) {
       const newImages = req.files.map(
         (file) => `${process.env.BASE_URL}/uploads/users/${file.filename}`

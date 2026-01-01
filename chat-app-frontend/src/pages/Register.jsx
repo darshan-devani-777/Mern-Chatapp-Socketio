@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import API_URL from "../config/api";
 
 export default function Register() {
   const [username, setUsername] = useState("");
@@ -21,7 +22,6 @@ export default function Register() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-
     const formData = new FormData();
     formData.append("username", username);
     formData.append("email", email);
